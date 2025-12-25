@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import random
 from datetime import date, datetime, timedelta
+from sqlalchemy.exc import ProgrammingError
 
 from sqlalchemy.orm import Session
 
@@ -142,10 +143,24 @@ def create_screen_sessions(db: Session, days: int = 30, sessions_per_employee_pe
     workstations = db.query(models.Workstation).all()
 
     if not employees or not workstations:
+        print("⚠️ No employees or workstations found. Skipping screen sessions creation.")
         return
 
     start_date = date.today() - timedelta(days=days)
 
+    # Временно отключаем триггер, который вызывает ошибку
+    try:
+        db.execute("ALTER TABLE screentime.screen_sessions DISABLE TRIGGER trg_screen_sessions_daily_stats")
+        print("⏸️ Disabled trigger 'trg_screen_sessions_daily_stats' temporarily")
+    except ProgrammingError as e:
+        if "does not exist" in str(e):
+            print("ℹ️ Trigger doesn't exist yet, proceeding without disabling")
+        else:
+            print(f"⚠️ Could not disable trigger: {str(e)}")
+    
+    # Создаем сессии
+    print(f"📊 Creating screen sessions for {len(employees)} employees over {days} days...")
+    
     for emp in employees:
         for day_offset in range(days):
             current_date = start_date + timedelta(days=day_offset)
@@ -169,6 +184,17 @@ def create_screen_sessions(db: Session, days: int = 30, sessions_per_employee_pe
                 )
 
     db.commit()
+    print("✅ Screen sessions created successfully")
+    
+    # Включаем триггер обратно
+    try:
+        db.execute("ALTER TABLE screentime.screen_sessions ENABLE TRIGGER trg_screen_sessions_daily_stats")
+        print("▶️ Re-enabled trigger 'trg_screen_sessions_daily_stats'")
+    except ProgrammingError as e:
+        if "does not exist" in str(e):
+            print("ℹ️ Trigger doesn't exist, skipping re-enable")
+        else:
+            print(f"⚠️ Could not re-enable trigger: {str(e)}")
 
 
 def main():
@@ -177,6 +203,10 @@ def main():
         create_basic_data(db)
         create_employees_and_workstations(db)
         create_screen_sessions(db, days=30, sessions_per_employee_per_day=3)
+        print("✨ Test data generation completed successfully!")
+    except Exception as e:
+        print(f"❌ Error during data generation: {str(e)}")
+        raise
     finally:
         db.close()
 

@@ -1,0 +1,15 @@
+{
+    "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "cw_db",
+            "database": "screentime_db",
+            "username": "screentime_user",
+            "password": "screentime_password"
+        }
+    ]
+}

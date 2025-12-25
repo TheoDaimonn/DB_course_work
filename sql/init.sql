@@ -1,10 +1,9 @@
 -- Инициализация схемы БД для системы учета экранного времени сотрудников
 CREATE SCHEMA IF NOT EXISTS screentime;
-SET search_path TO screentime, public;
 
--- Таблицы справочников и сущностей
+-- Таблицы справочников и сущностей (с IF NOT EXISTS)
 
-CREATE TABLE departments (
+CREATE TABLE IF NOT EXISTS screentime.departments (
     id              SERIAL PRIMARY KEY,
     name            VARCHAR(100) NOT NULL UNIQUE,
     code            VARCHAR(20) NOT NULL UNIQUE,
@@ -13,7 +12,7 @@ CREATE TABLE departments (
     description     TEXT
 );
 
-CREATE TABLE positions (
+CREATE TABLE IF NOT EXISTS screentime.positions (
     id              SERIAL PRIMARY KEY,
     name            VARCHAR(100) NOT NULL UNIQUE,
     level           INTEGER NOT NULL CHECK (level BETWEEN 1 AND 10),
@@ -22,7 +21,7 @@ CREATE TABLE positions (
     is_active       BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS screentime.users (
     id              SERIAL PRIMARY KEY,
     username        VARCHAR(50) NOT NULL UNIQUE,
     password_hash   VARCHAR(255) NOT NULL,
@@ -31,26 +30,26 @@ CREATE TABLE users (
     is_active       BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE employees (
+CREATE TABLE IF NOT EXISTS screentime.employees (
     id              SERIAL PRIMARY KEY,
     first_name      VARCHAR(50) NOT NULL,
     last_name       VARCHAR(50) NOT NULL,
     email           VARCHAR(100) UNIQUE,
-    department_id   INTEGER REFERENCES departments(id)
+    department_id   INTEGER REFERENCES screentime.departments(id)
                         ON UPDATE CASCADE ON DELETE SET NULL,
-    position_id     INTEGER REFERENCES positions(id)
+    position_id     INTEGER REFERENCES screentime.positions(id)
                         ON UPDATE CASCADE ON DELETE SET NULL,
-    user_id         INTEGER UNIQUE REFERENCES users(id)
+    user_id         INTEGER UNIQUE REFERENCES screentime.users(id)
                         ON UPDATE CASCADE ON DELETE SET NULL,
     hired_at        DATE NOT NULL,
     is_active       BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE workstations (
+CREATE TABLE IF NOT EXISTS screentime.workstations (
     id                  SERIAL PRIMARY KEY,
     hostname            VARCHAR(100) NOT NULL,
     inventory_number    VARCHAR(50) NOT NULL UNIQUE,
-    department_id       INTEGER NOT NULL REFERENCES departments(id)
+    department_id       INTEGER NOT NULL REFERENCES screentime.departments(id)
                             ON UPDATE CASCADE ON DELETE CASCADE,
     os_name             VARCHAR(50) NOT NULL,
     created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -58,7 +57,7 @@ CREATE TABLE workstations (
     CONSTRAINT uq_workstation_host_per_dept UNIQUE (hostname, department_id)
 );
 
-CREATE TABLE applications (
+CREATE TABLE IF NOT EXISTS screentime.applications (
     id              SERIAL PRIMARY KEY,
     name            VARCHAR(100) NOT NULL,
     code            VARCHAR(50) NOT NULL UNIQUE,
@@ -69,10 +68,10 @@ CREATE TABLE applications (
 );
 
 -- Связь N:M сотрудников и рабочих станций
-CREATE TABLE employee_workstations (
-    employee_id     INTEGER NOT NULL REFERENCES employees(id)
+CREATE TABLE IF NOT EXISTS screentime.employee_workstations (
+    employee_id     INTEGER NOT NULL REFERENCES screentime.employees(id)
                         ON UPDATE CASCADE ON DELETE CASCADE,
-    workstation_id  INTEGER NOT NULL REFERENCES workstations(id)
+    workstation_id  INTEGER NOT NULL REFERENCES screentime.workstations(id)
                         ON UPDATE CASCADE ON DELETE CASCADE,
     assigned_at     TIMESTAMP NOT NULL DEFAULT NOW(),
     unassigned_at   TIMESTAMP,
@@ -82,11 +81,11 @@ CREATE TABLE employee_workstations (
 );
 
 -- Транзакционная таблица экранных сессий
-CREATE TABLE screen_sessions (
+CREATE TABLE IF NOT EXISTS screentime.screen_sessions (
     id              BIGSERIAL PRIMARY KEY,
-    employee_id     INTEGER NOT NULL REFERENCES employees(id)
+    employee_id     INTEGER NOT NULL REFERENCES screentime.employees(id)
                         ON UPDATE CASCADE ON DELETE CASCADE,
-    workstation_id  INTEGER NOT NULL REFERENCES workstations(id)
+    workstation_id  INTEGER NOT NULL REFERENCES screentime.workstations(id)
                         ON UPDATE CASCADE ON DELETE CASCADE,
     started_at      TIMESTAMP NOT NULL,
     ended_at        TIMESTAMP NOT NULL,
@@ -96,10 +95,10 @@ CREATE TABLE screen_sessions (
 );
 
 -- Использование приложений в рамках сессии (N:M через детальную таблицу)
-CREATE TABLE session_application_usage (
-    session_id      BIGINT NOT NULL REFERENCES screen_sessions(id)
+CREATE TABLE IF NOT EXISTS screentime.session_application_usage (
+    session_id      BIGINT NOT NULL REFERENCES screentime.screen_sessions(id)
                         ON UPDATE CASCADE ON DELETE CASCADE,
-    application_id  INTEGER NOT NULL REFERENCES applications(id)
+    application_id  INTEGER NOT NULL REFERENCES screentime.applications(id)
                         ON UPDATE CASCADE ON DELETE RESTRICT,
     active_seconds  INTEGER NOT NULL CHECK (active_seconds >= 0),
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -108,8 +107,8 @@ CREATE TABLE session_application_usage (
 );
 
 -- Агрегированные суточные статистики по сотруднику
-CREATE TABLE daily_employee_stats (
-    employee_id         INTEGER NOT NULL REFERENCES employees(id)
+CREATE TABLE IF NOT EXISTS screentime.daily_employee_stats (
+    employee_id         INTEGER NOT NULL REFERENCES screentime.employees(id)
                             ON UPDATE CASCADE ON DELETE CASCADE,
     stat_date           DATE    NOT NULL,
     total_seconds       INTEGER NOT NULL DEFAULT 0 CHECK (total_seconds >= 0),
@@ -119,7 +118,7 @@ CREATE TABLE daily_employee_stats (
 );
 
 -- Журнал аудита изменений
-CREATE TABLE audit_log (
+CREATE TABLE IF NOT EXISTS screentime.audit_log (
     id              BIGSERIAL PRIMARY KEY,
     table_name      TEXT NOT NULL,
     operation       VARCHAR(10) NOT NULL CHECK (operation IN ('INSERT','UPDATE','DELETE')),
@@ -131,7 +130,7 @@ CREATE TABLE audit_log (
 );
 
 -- Лог batch-импорта
-CREATE TABLE batch_import_logs (
+CREATE TABLE IF NOT EXISTS screentime.batch_import_logs (
     id              BIGSERIAL PRIMARY KEY,
     import_type     VARCHAR(50) NOT NULL,
     file_name       TEXT,
@@ -145,18 +144,18 @@ CREATE TABLE batch_import_logs (
     error_message   TEXT
 );
 
--- Индексы
+-- Индексы (с IF NOT EXISTS)
 
-CREATE INDEX idx_employees_department ON employees(department_id);
-CREATE INDEX idx_screen_sessions_employee_date ON screen_sessions(employee_id, started_at);
-CREATE INDEX idx_screen_sessions_workstation ON screen_sessions(workstation_id);
-CREATE INDEX idx_daily_stats_employee_date ON daily_employee_stats(employee_id, stat_date);
-CREATE INDEX idx_audit_log_table_changed_at ON audit_log(table_name, changed_at);
-CREATE INDEX idx_applications_code ON applications(code);
+CREATE INDEX IF NOT EXISTS idx_employees_department ON screentime.employees(department_id);
+CREATE INDEX IF NOT EXISTS idx_screen_sessions_employee_date ON screentime.screen_sessions(employee_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_screen_sessions_workstation ON screentime.screen_sessions(workstation_id);
+CREATE INDEX IF NOT EXISTS idx_daily_stats_employee_date ON screentime.daily_employee_stats(employee_id, stat_date);
+CREATE INDEX IF NOT EXISTS idx_audit_log_table_changed_at ON screentime.audit_log(table_name, changed_at);
+CREATE INDEX IF NOT EXISTS idx_applications_code ON screentime.applications(code);
 
 -- Функции и триггеры аудита
 
-CREATE OR REPLACE FUNCTION trg_write_audit_log()
+CREATE OR REPLACE FUNCTION screentime.trg_write_audit_log()
 RETURNS TRIGGER AS $$
 DECLARE
     v_record_id TEXT;
@@ -181,25 +180,30 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Триггеры аудита (DROP + CREATE — безопасно)
+DROP TRIGGER IF EXISTS trg_audit_employees ON screentime.employees;
 CREATE TRIGGER trg_audit_employees
-AFTER INSERT OR UPDATE OR DELETE ON employees
-FOR EACH ROW EXECUTE FUNCTION trg_write_audit_log();
+AFTER INSERT OR UPDATE OR DELETE ON screentime.employees
+FOR EACH ROW EXECUTE FUNCTION screentime.trg_write_audit_log();
 
+DROP TRIGGER IF EXISTS trg_audit_workstations ON screentime.workstations;
 CREATE TRIGGER trg_audit_workstations
-AFTER INSERT OR UPDATE OR DELETE ON workstations
-FOR EACH ROW EXECUTE FUNCTION trg_write_audit_log();
+AFTER INSERT OR UPDATE OR DELETE ON screentime.workstations
+FOR EACH ROW EXECUTE FUNCTION screentime.trg_write_audit_log();
 
+DROP TRIGGER IF EXISTS trg_audit_screen_sessions ON screentime.screen_sessions;
 CREATE TRIGGER trg_audit_screen_sessions
-AFTER INSERT OR UPDATE OR DELETE ON screen_sessions
-FOR EACH ROW EXECUTE FUNCTION trg_write_audit_log();
+AFTER INSERT OR UPDATE OR DELETE ON screentime.screen_sessions
+FOR EACH ROW EXECUTE FUNCTION screentime.trg_write_audit_log();
 
+DROP TRIGGER IF EXISTS trg_audit_applications ON screentime.applications;
 CREATE TRIGGER trg_audit_applications
-AFTER INSERT OR UPDATE OR DELETE ON applications
-FOR EACH ROW EXECUTE FUNCTION trg_write_audit_log();
+AFTER INSERT OR UPDATE OR DELETE ON screentime.applications
+FOR EACH ROW EXECUTE FUNCTION screentime.trg_write_audit_log();
 
 -- Функции и триггеры для агрегатов daily_employee_stats
 
-CREATE OR REPLACE FUNCTION fn_recalculate_daily_employee_stat(p_employee_id INT, p_date DATE)
+CREATE OR REPLACE FUNCTION screentime.fn_recalculate_daily_employee_stat(p_employee_id INT, p_date DATE)
 RETURNS VOID AS $$
 DECLARE
     v_total_seconds   INTEGER;
@@ -211,15 +215,15 @@ BEGIN
         COUNT(*),
         COALESCE(AVG(active_seconds), 0)
     INTO v_total_seconds, v_sessions_count, v_avg_seconds
-    FROM screen_sessions
+    FROM screentime.screen_sessions
     WHERE employee_id = p_employee_id
       AND started_at::DATE = p_date;
 
     IF v_sessions_count = 0 THEN
-        DELETE FROM daily_employee_stats
+        DELETE FROM screentime.daily_employee_stats
         WHERE employee_id = p_employee_id AND stat_date = p_date;
     ELSE
-        INSERT INTO daily_employee_stats(employee_id, stat_date, total_seconds, sessions_count, avg_session_seconds)
+        INSERT INTO screentime.daily_employee_stats(employee_id, stat_date, total_seconds, sessions_count, avg_session_seconds)
         VALUES (p_employee_id, p_date, v_total_seconds, v_sessions_count, v_avg_seconds)
         ON CONFLICT (employee_id, stat_date) DO UPDATE
         SET total_seconds = EXCLUDED.total_seconds,
@@ -229,7 +233,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION trg_update_daily_stats()
+CREATE OR REPLACE FUNCTION screentime.trg_update_daily_stats()
 RETURNS TRIGGER AS $$
 DECLARE
     v_emp_id INT;
@@ -262,20 +266,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_screen_sessions_daily_stats ON screentime.screen_sessions;
 CREATE TRIGGER trg_screen_sessions_daily_stats
-AFTER INSERT OR UPDATE OR DELETE ON screen_sessions
-FOR EACH ROW EXECUTE FUNCTION trg_update_daily_stats();
+AFTER INSERT OR UPDATE OR DELETE ON screentime.screen_sessions
+FOR EACH ROW EXECUTE FUNCTION screentime.trg_update_daily_stats();
 
 -- Скалярная и табличные функции для отчетов
 
-CREATE OR REPLACE FUNCTION fn_employee_daily_load(p_employee_id INT, p_date DATE)
+CREATE OR REPLACE FUNCTION screentime.fn_employee_daily_load(p_employee_id INT, p_date DATE)
 RETURNS NUMERIC(10,2) AS $$
 DECLARE
     v_total_seconds INTEGER;
 BEGIN
     SELECT COALESCE(SUM(active_seconds), 0)
     INTO v_total_seconds
-    FROM screen_sessions
+    FROM screentime.screen_sessions
     WHERE employee_id = p_employee_id
       AND started_at::DATE = p_date;
 
@@ -283,7 +288,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
-CREATE OR REPLACE FUNCTION fn_top_overworked_employees(
+CREATE OR REPLACE FUNCTION screentime.fn_top_overworked_employees(
     p_date_from DATE,
     p_date_to   DATE,
     p_min_hours_per_day NUMERIC
@@ -299,7 +304,7 @@ BEGIN
         des.employee_id,
         (SUM(des.total_seconds) / 3600.0) / COUNT(DISTINCT des.stat_date) AS avg_hours_per_day,
         COUNT(DISTINCT des.stat_date) AS total_days
-    FROM daily_employee_stats des
+    FROM screentime.daily_employee_stats des
     WHERE des.stat_date BETWEEN p_date_from AND p_date_to
     GROUP BY des.employee_id
     HAVING (SUM(des.total_seconds) / 3600.0) / COUNT(DISTINCT des.stat_date) >= p_min_hours_per_day
@@ -307,7 +312,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
-CREATE OR REPLACE FUNCTION fn_department_load(
+CREATE OR REPLACE FUNCTION screentime.fn_department_load(
     p_date_from DATE,
     p_date_to   DATE
 )
@@ -322,8 +327,8 @@ BEGIN
         e.department_id,
         SUM(des.total_seconds) AS total_seconds,
         AVG(des.total_seconds)::NUMERIC(10,2) AS avg_seconds_per_employee
-    FROM daily_employee_stats des
-    JOIN employees e ON e.id = des.employee_id
+    FROM screentime.daily_employee_stats des
+    JOIN screentime.employees e ON e.id = des.employee_id
     WHERE des.stat_date BETWEEN p_date_from AND p_date_to
     GROUP BY e.department_id
     ORDER BY total_seconds DESC;
@@ -332,7 +337,7 @@ $$ LANGUAGE plpgsql STABLE;
 
 -- Представления
 
-CREATE OR REPLACE VIEW v_employee_daily_stats AS
+CREATE OR REPLACE VIEW screentime.v_employee_daily_stats AS
 SELECT
     des.employee_id,
     e.first_name,
@@ -343,24 +348,24 @@ SELECT
     des.total_seconds,
     des.sessions_count,
     des.avg_session_seconds
-FROM daily_employee_stats des
-JOIN employees e ON e.id = des.employee_id
-LEFT JOIN departments d ON d.id = e.department_id
-LEFT JOIN positions p ON p.id = e.position_id;
+FROM screentime.daily_employee_stats des
+JOIN screentime.employees e ON e.id = des.employee_id
+LEFT JOIN screentime.departments d ON d.id = e.department_id
+LEFT JOIN screentime.positions p ON p.id = e.position_id;
 
-CREATE OR REPLACE VIEW v_department_daily_stats AS
+CREATE OR REPLACE VIEW screentime.v_department_daily_stats AS
 SELECT
     d.id AS department_id,
     d.name AS department_name,
     des.stat_date,
     SUM(des.total_seconds) AS total_seconds,
     SUM(des.sessions_count) AS sessions_count
-FROM daily_employee_stats des
-JOIN employees e ON e.id = des.employee_id
-JOIN departments d ON d.id = e.department_id
+FROM screentime.daily_employee_stats des
+JOIN screentime.employees e ON e.id = des.employee_id
+JOIN screentime.departments d ON d.id = e.department_id
 GROUP BY d.id, d.name, des.stat_date;
 
-CREATE OR REPLACE VIEW v_employee_last_activity AS
+CREATE OR REPLACE VIEW screentime.v_employee_last_activity AS
 SELECT DISTINCT ON (e.id)
     e.id AS employee_id,
     e.first_name,
@@ -370,11 +375,7 @@ SELECT DISTINCT ON (e.id)
     s.started_at,
     s.ended_at,
     s.active_seconds
-FROM employees e
-JOIN screen_sessions s ON s.employee_id = e.id
-JOIN workstations w ON w.id = s.workstation_id
+FROM screentime.employees e
+JOIN screentime.screen_sessions s ON s.employee_id = e.id
+JOIN screentime.workstations w ON w.id = s.workstation_id
 ORDER BY e.id, s.ended_at DESC;
-
--- Демонстрационные запросы EXPLAIN ANALYZE (запускать вручную)
--- EXPLAIN ANALYZE SELECT * FROM screen_sessions WHERE employee_id = 1 AND started_at BETWEEN '2025-01-01' AND '2025-01-31';
--- После создания индекса idx_screen_sessions_employee_date план и время выполнения улучшатся.
