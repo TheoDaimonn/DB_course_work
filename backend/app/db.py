@@ -1,3 +1,5 @@
+
+
 from typing import Generator
 
 from sqlalchemy import create_engine
@@ -17,5 +19,10 @@ def get_db() -> Generator:
     db = SessionLocal()
     try:
         yield db
+    except Exception:  
+        # Если внутри ручки/зависимости произошла ошибка (включая ошибки БД),
+        # транзакцию нужно откатить, иначе сессия останется "broken".
+        db.rollback()
+        raise
     finally:
         db.close()
